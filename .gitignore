@@ -231,3 +231,8 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node,intellij+all
+
+# Data DBs
+data.db
+data.db-shm
+data.db-wal

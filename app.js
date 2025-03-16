@@ -1,5 +1,6 @@
-import { launchWebsocket } from './api_modules/websocket.js';
-import { launchREST } from './api_modules/rest.js';
+import { launchWebsocket } from './websocket.js';
+import { setupDB } from './db.js';
+
+setupDB();
 
 launchWebsocket();
-launchREST();

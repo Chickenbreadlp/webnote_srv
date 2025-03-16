@@ -23,6 +23,7 @@ export function setupDB() {
                 id                TEXT    PRIMARY KEY NOT NULL,
                 locked            INTEGER DEFAULT 0   NOT NULL,
                 title             TEXT                NOT NULL,
+                type              TEXT                NOT NULL,
                 content           TEXT                NOT NULL
             )`).run();
 
@@ -54,4 +55,193 @@ export function setupDB() {
         }
         */
     }
+}
+
+export async function getAllDocuments() {
+    const dbDocs = await db.prepare(`
+            SELECT *
+            FROM documents
+        `).all();
+
+    return dbDocs
+        .map(doc => {
+            if (doc.type === 'text') {
+                return {
+                    id: doc.id,
+                    title: doc.title,
+                    locked: doc.locked === 1,
+                    text: JSON.parse(doc.content)
+                };
+            }
+            if (doc.type === 'checklist') {
+                return {
+                    id: doc.id,
+                    title: doc.title,
+                    entries: JSON.parse(doc.content)
+                };
+            }
+            return null
+        })
+        .filter(doc => doc !== null);
+}
+export async function getLatestChange() {
+    let historyEntry;
+    try {
+        historyEntry = await db.prepare(`
+                SELECT change
+                FROM change_history
+                WHERE id = (SELECT id FROM change_history ORDER BY timestamp DESC LIMIT 1)
+            `).get();
+    }
+    catch(e) {}
+
+    if (historyEntry) {
+        return JSON.parse(historyEntry.change);
+    }
+}
+
+async function logChange(change) {
+    if (
+        'type' in change &&
+        'timestamp' in change
+    ) {
+        await db.prepare(`
+                INSERT INTO change_history(timestamp, type, change)
+                VALUES (?, ?, ?)
+            `).run(
+                change.timestamp,
+                change.type,
+                JSON.stringify(change)
+            );
+    }
+}
+
+export async function createDBDocument(change) {
+    await logChange(change);
+    if (
+        'document' in change &&
+        'title' in change &&
+        'content' in change
+    ) {
+        const docType = typeof change.content === 'string' ? 'text' : 'checklist';
+        await db.prepare(`
+                INSERT INTO documents(id, title, type, content)
+                VALUES (?, ?, ?, ?)
+            `).run(
+                change.document,
+                change.title,
+                docType,
+                JSON.stringify(change.content)
+            );
+    }
+}
+export async function updateDBDocument(change) {
+    await logChange(change);
+    if ('document' in change) {
+        let document;
+        try {
+            document = await db.prepare(`
+                    SELECT type, content
+                    FROM documents
+                    WHERE id = ?
+                `).get(
+                    change.document
+                );
+        }
+        catch(e) {}
+
+        if (document) {
+            let changeApplied = false;
+            document.content = JSON.parse(document.content);
+            if (document.type === 'text' && 'textChange' in change) {
+                document.content = change.textChange;
+                changeApplied = true;
+            }
+            else if (document.type === 'checklist') {
+                if ('entryChange' in change) {
+                    const entryChange = change.entryChange;
+                    const entryIndex = document.content.findIndex(entry => entry.id === entryChange.id);
+
+                    if (entryIndex !== -1) {
+                        const entry = document.content[entryIndex];
+
+                        if (entryChange.newText)
+                            entry.text = entryChange.newText;
+                        if (typeof entryChange.newCrossedState === 'boolean')
+                            entry.crossed = entryChange.newCrossedState;
+
+                        changeApplied = true;
+                    }
+                }
+                if ('entryAdd' in change) {
+                    if (change.entryAdd.atTop) {
+                        document.content.unshift({
+                            id: change.entryAdd.id,
+                            text: change.entryAdd.text,
+                            crossed: change.entryAdd.crossedState
+                        });
+                        changeApplied = true;
+                    }
+                    else {
+                        document.content.push({
+                            id: change.entryAdd.id,
+                            text: change.entryAdd.text,
+                            crossed: change.entryAdd.crossedState
+                        });
+                        changeApplied = true;
+                    }
+                }
+                if ('entryRemove' in change) {
+                    const index = document.content.findIndex(entry => entry.id === change.entryRemove);
+                    if (index !== -1) {
+                        document.content.splice(index, 1);
+                        changeApplied = true;
+                    }
+                }
+                if ('entryReorder' in change) {
+                    const newEntryOrder = [];
+                    for (const entryId of change.entryReorder) {
+                        const entry = document.content.find(entry => entry.id === entryId);
+                        if (entry) {
+                            newEntryOrder.push(entry);
+                        }
+                    }
+                    document.content = newEntryOrder;
+                    changeApplied = true;
+                }
+            }
+
+            if (changeApplied) {
+                await db.prepare(`
+                        UPDATE documents
+                        SET content = ?
+                        WHERE id = ?
+                    `).run(
+                        JSON.stringify(document.content),
+                        change.document
+                    );
+            }
+        }
+    }
+}
+export async function deleteDBDocument(change) {
+    await logChange(change);
+    if ('document' in change) {
+        await db.prepare(`
+                DELETE FROM documents
+                WHERE id = ?
+            `).run(
+                change.document
+            );
+    }
+}
+
+export async function getChangeHistory(fromTimestamp) {
+    return db.prepare(`
+            SELECT timestamp, type, change
+            FROM change_history
+            WHERE timestamp > ?
+        `)
+        .all(fromTimestamp)
+        .map(row => ({ ...row, change: JSON.parse(row.change) }));
 }
