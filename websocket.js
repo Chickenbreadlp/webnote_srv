@@ -8,7 +8,7 @@ import {
     updateDBDocument
 } from './db.js';
 
-const port = 3001;
+const port = 3009;
 
 export function launchWebsocket() {
     const wss = new WebSocketServer({ port });
