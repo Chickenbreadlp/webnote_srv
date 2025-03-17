@@ -125,6 +125,7 @@ export async function getLatestChange() {
     if (historyEntry) {
         return JSON.parse(historyEntry.change);
     }
+    return null;
 }
 
 async function logChange(change) {

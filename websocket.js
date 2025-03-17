@@ -51,7 +51,7 @@ export function launchWebsocket() {
             msgType: 'fetchList',
             callbackId,
             list: await getAllDocuments(),
-            lastTimestamp: (await getLatestChange()).timestamp
+            lastTimestamp: (await getLatestChange())?.timestamp || null
         }));
     }
     async function handeOfflineSync(client, data) {
