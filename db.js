@@ -80,9 +80,36 @@ export async function getAllDocuments() {
                     entries: JSON.parse(doc.content)
                 };
             }
-            return null
+            return null;
         })
         .filter(doc => doc !== null);
+}
+export async function getDocument(id) {
+    try {
+        const dbDoc = await db.prepare(`
+                SELECT *
+                FROM documents
+                WHERE id = ?;
+            `).get(id);
+
+        if (dbDoc.type === 'text') {
+            return {
+                id: dbDoc.id,
+                title: dbDoc.title,
+                locked: dbDoc.locked === 1,
+                text: JSON.parse(dbDoc.content)
+            };
+        }
+        if (dbDoc.type === 'checklist') {
+            return {
+                id: dbDoc.id,
+                title: dbDoc.title,
+                entries: JSON.parse(dbDoc.content)
+            };
+        }
+    }
+    catch(e) {}
+    return null;
 }
 export async function getLatestChange() {
     let historyEntry;
@@ -241,7 +268,12 @@ export async function getChangeHistory(fromTimestamp) {
             SELECT timestamp, type, change
             FROM change_history
             WHERE timestamp > ?
+            ORDER BY timestamp
         `)
         .all(fromTimestamp)
         .map(row => ({ ...row, change: JSON.parse(row.change) }));
+}
+
+export async function vacuumDB() {
+    await db.prepare(`VACUUM`).run();
 }
