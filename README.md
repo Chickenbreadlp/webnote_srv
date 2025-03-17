@@ -16,7 +16,7 @@ npm run install
 ```
 
 ## Server
-Start the server on `http://localhost:3009`:
+Start the server on `ws://localhost:3009`:
 ```sh
 npm run start
 ```
