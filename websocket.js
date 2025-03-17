@@ -16,18 +16,24 @@ export function launchWebsocket() {
         this.isAlive = true;
     }
 
+    function logWithClientCount(...args) {
+        console.log(wss.clients.size + ' clients connected |', ...args);
+    }
+
     function broadcast(data, skipClients = []) {
         const sendingData = { ...data };
         if ('callbackId' in sendingData) {
             delete sendingData.callbackId;
         }
 
+        let clientCount = 0;
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN && !skipClients.includes(client)) {
-                console.log('broadcasting %s', sendingData);
+                clientCount++;
                 client.send(JSON.stringify(sendingData));
             }
-        })
+        });
+        logWithClientCount(`Broadcasted '${sendingData.msgType}' to ${clientCount} clients`);
     }
 
     async function handleChangeMsg(client, data) {
@@ -280,14 +286,14 @@ export function launchWebsocket() {
     }
 
     wss.on('connection', function connection(ws) {
-        console.log('New client connected');
+        logWithClientCount('New client connected');
         ws.isAlive = true;
         ws.on('error', console.error);
         ws.on('pong', wssHeartbeat);
 
         ws.on('message', async function message(data) {
             const parsedData = JSON.parse(data);
-            console.log('received: %s', parsedData);
+            logWithClientCount(`Received '${parsedData.msgType}' message`);
 
             switch (parsedData.msgType) {
                 case 'change': {
