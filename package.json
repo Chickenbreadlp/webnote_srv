@@ -18,10 +18,14 @@
   },
   "homepage": "https://github.com/Chickenbreadlp/webnote_srv#readme",
   "dependencies": {
-    "better-sqlite3": "^11.9.0",
-    "ws": "^8.18.1"
+    "better-sqlite3": "^13.0.3",
+    "ws": "^8.22.1"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.9"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+	"bufferutil@4.0.9": true
   }
 }
